@@ -1,9 +1,12 @@
+import logging
 from json import loads, JSONDecodeError
 
 import paho.mqtt.client as mqtt
 
 from i2c import I2CRWMixin
 from obj_type import ObjType
+
+_log = logging.getLogger(__name__)
 
 
 class VisioMQTTApi(I2CRWMixin):
@@ -37,6 +40,9 @@ class VisioMQTTApi(I2CRWMixin):
     def rpc_value_panel(self, params: dict, topic: str) -> None:
         # todo: default value
         # todo: validate params
+
+        _log.debug(f'Processing \'value\' method with params: {params}')
+
         publish_topic = topic.replace('Set', 'Site')
 
         if params['object_type'] == ObjType.BINARY_OUTPUT.id:
