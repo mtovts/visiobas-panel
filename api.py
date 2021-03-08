@@ -151,7 +151,7 @@ class VisioMQTTI2CApi:
 
         _log.debug(f'Write bus={bus_addr}, pin={pin_id} value={value}')
 
-        self.bi_pins[bus_addr][pin_id].value = value
+        self.bo_pins[bus_addr][pin_id].value = value
 
     def write_with_check_i2c(self, value: bool, obj_id: int  # , obj_type: int, dev_id: int
                              ) -> bool:
