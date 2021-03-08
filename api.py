@@ -31,6 +31,7 @@ class VisioMQTTI2CApi:
                           for addr in self._config.get('bi_buses', [])]
         self.bo_busses = [MCP23008(self.i2c, address=addr)
                           for addr in self._config.get('bo_buses', [])]
+        _log.debug(f'bo={self.bo_busses} bi={self.bi_busses}')
 
         # init pins
         self.bi_pins = {}
@@ -67,10 +68,10 @@ class VisioMQTTI2CApi:
         import yaml
 
         with yaml_path.open() as cfg_file:
-            mqtt_cfg = yaml.load(cfg_file, Loader=yaml.FullLoader)
-            _log.info(f'Creating {cls.__name__} from {yaml_path} ...')
+            i2c_cfg = yaml.load(cfg_file, Loader=yaml.FullLoader)
+            _log.info(f'Creating {cls.__name__} from {yaml_path} ... {i2c_cfg}')
         return cls(visio_mqtt_client=visio_mqtt_client,
-                   config=mqtt_cfg
+                   config=i2c_cfg
                    )
 
     @staticmethod

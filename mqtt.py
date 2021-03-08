@@ -193,5 +193,5 @@ class VisioMQTTClient:  # (Thread):
                                          )
         except Exception as e:
             _log.warning(f'Error: {e} :{msg_dct}',
-                         # exc_info=True
+                         exc_info=True
                          )
