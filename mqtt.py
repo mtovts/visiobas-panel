@@ -105,18 +105,11 @@ class VisioMQTTClient:  # (Thread):
         while not self._stopped:
             try:
                 time.sleep(60 * 5)
-                # #topic, data = self._getting_queue.get()
-                # #_log.debug(f'Received: {topic}: {data}')
-                #
-                # #self.publish(payload=data,
-                #              topic=topic,
-                #              qos=self._qos,
-                #              retain=self._retain
-                #              )
+
             except Exception as e:
-                _log.error(f"Receive-publish error: {e}",
-                           exc_info=True
-                           )
+                _log.warning(f'Receive-publish error: {e}',
+                             exc_info=True
+                             )
         else:  # received stop signal
             _log.info(f'{self} stopped.')
 

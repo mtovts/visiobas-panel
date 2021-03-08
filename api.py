@@ -96,10 +96,10 @@ class VisioMQTTI2CApi:
         publish_topic = topic.replace('Set', 'Site')
 
         if params['object_type'] == ObjType.BINARY_OUTPUT.id:
-            _is_equal = self.write_with_check_i2c(value=params['value'],
+            _is_equal = self.write_with_check_i2c(value=bool(params['value']),
                                                   obj_id=params['object_identifier'],
-                                                  obj_type=params['object_type'],
-                                                  dev_id=params['device_id']
+                                                  # obj_type=params['object_type'],
+                                                  # dev_id=params['device_id']
                                                   )
             if not _is_equal:
                 return None
@@ -111,8 +111,8 @@ class VisioMQTTI2CApi:
 
         elif params['object_type'] == ObjType.BINARY_INPUT.id:
             value = self.read_i2c(obj_id=params['object_identifier'],
-                                  obj_type=params['object_type'],
-                                  dev_id=params['device_id']
+                                  # obj_type=params['object_type'],
+                                  # dev_id=params['device_id']
                                   )
             payload = '{0} {1} {2} {3}'.format(params['device_id'],
                                                params['object_type'],
@@ -125,7 +125,7 @@ class VisioMQTTI2CApi:
                       payload=payload,
                       )
 
-    def read_i2c(self, obj_id: int, obj_type: int, dev_id: int) -> bool:
+    def read_i2c(self, obj_id: int):  # , obj_type: int, dev_id: int) -> bool:
         """
         :param obj_id: first two numbers contains bus address. Then going pin number.
                 Example: obj_id=3701 -> bus_address=37, pin=01
@@ -134,32 +134,40 @@ class VisioMQTTI2CApi:
         pin_id = int(str(obj_id)[2:])
 
         try:
-            return self.bi_pins[bus_addr][pin_id].value
+            v = self.bi_pins[bus_addr][pin_id].value
+            _log.debug(f'Read: bus={bus_addr} pin={pin_id} value{v}')
+            return v
         except LookupError as e:
             _log.warning(e)
 
-    def write_i2c(self, value: bool, obj_id: int, obj_type: int, dev_id: int):
+    def write_i2c(self, value: bool, obj_id: int):  # , obj_type: int, dev_id: int):
         """
-        :param value: True - Turn off. False - Turn on
-        :param dev_id: in hex. Example: 0x25
+        :param obj_id: first two numbers contains bus address. Then going pin number.
+                Example: obj_id=3701 -> bus_address=37, pin=01
         """
         bus_addr = int(str(obj_id)[:2])
         pin_id = int(str(obj_id)[2:])
 
+        _log.debug(f'Write bus={bus_addr}, pin={pin_id} value={value}')
+
         self.bi_pins[bus_addr][pin_id].value = value
 
-    def write_with_check_i2c(self, value: bool, obj_id: int, obj_type: int, dev_id: int
+    def write_with_check_i2c(self, value: bool, obj_id: int  # , obj_type: int, dev_id: int
                              ) -> bool:
         """
+        :param obj_id: first two numbers contains bus address. Then going pin number.
+                Example: obj_id=3701 -> bus_address=37, pin=01
         :return: the read value is equal to the written value
         """
         self.write_i2c(value=value,
                        obj_id=obj_id,
-                       obj_type=obj_type,
-                       dev_id=dev_id
+                       # obj_type=obj_type,
+                       # dev_id=dev_id
                        )
         rvalue = self.read_i2c(obj_id=obj_id,
-                               obj_type=obj_type,
-                               dev_id=dev_id
+                               # obj_type=obj_type,
+                               # dev_id=dev_id
                                )
-        return value == rvalue
+        res = value == rvalue
+        _log.debug(f'Write with check result={res}')
+        return res
