@@ -5,10 +5,11 @@ from typing import Sequence
 
 import paho.mqtt.client as mqtt
 
-from api import VisioMQTTApi
+from api import VisioMQTTI2CApi
 from result_code import ResultCode
 
 _log = getLogger(__name__)
+_base_dir = Path.cwd()
 
 
 class VisioMQTTClient:  # (Thread):
@@ -56,17 +57,16 @@ class VisioMQTTClient:  # (Thread):
         self._client.on_message = self._on_message_cb
         self._client.on_publish = self._on_publish_cb
 
-        self.api = VisioMQTTApi(visio_mqtt_client=self,
-                                # gateway=gateway
-                                )
+        self.api = VisioMQTTI2CApi.from_yaml(visio_mqtt_client=self,
+                                             yaml_path=_base_dir / 'i2c.yaml'
+                                             )
         self.topics = [(topic, self._qos) for topic in self._config['subscribe']]
 
     def __repr__(self) -> str:
         return self.__class__.__name__
 
     @classmethod
-    def from_yaml(cls,  # gateway, getting_queue: SimpleQueue,
-                  yaml_path: Path):
+    def from_yaml(cls, yaml_path: Path):
         import yaml
 
         with yaml_path.open() as cfg_file:

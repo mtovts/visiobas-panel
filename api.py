@@ -1,27 +1,77 @@
 import logging
 from json import loads, JSONDecodeError
+from pathlib import Path
 
+import busio
+import digitalio
 import paho.mqtt.client as mqtt
+from adafruit_mcp230xx.mcp23008 import MCP23008
 
-from i2c import I2CRWMixin
 from obj_type import ObjType
 
 _log = logging.getLogger(__name__)
 
+try:
+    import board
+except NotImplementedError as e:
+    _log.critical(e)
 
-class VisioMQTTApi(I2CRWMixin):
 
-    def __init__(self, visio_mqtt_client):  # , gateway):
+class VisioMQTTI2CApi:
+
+    def __init__(self, visio_mqtt_client, config: dict):  # , gateway):
         self.mqtt_client = visio_mqtt_client
-        # self._gateway = gateway
 
-    def publish(self, topic: str, payload: str = None, qos: int = 0,
-                retain: bool = False) -> mqtt.MQTTMessageInfo:
+        self._config = config
+
+        self.i2c = busio.I2C(board.SCL, board.SDA)
+
+        # init i2c buses
+        self.bi_busses = [MCP23008(self.i2c, address=addr)
+                          for addr in self._config.get('bi_buses', [])]
+        self.bo_busses = [MCP23008(self.i2c, address=addr)
+                          for addr in self._config.get('bo_buses', [])]
+
+        # init pins
+        self.bi_pins = {}
+        for bus, bus_addr in zip(self.bi_busses, self._config.get('bi_buses', [])):
+            pins = []
+            for i in range(8):
+                pin = bus.get_pin(i)
+                pin.direction = digitalio.Direction.INPUT
+                pin.pull = digitalio.Pull.UP
+                pins.append(pin)
+
+            self.bi_pins[bus_addr] = pins
+
+        self.bo_pins = {}
+        for bus, bus_addr in zip(self.bo_busses, self._config.get('bo_buses', [])):
+            pins = []
+            for i in range(8):
+                pin = bus.get_pin(i)
+                pin.switch_to_output()
+                pins.append(pin)
+
+            self.bo_pins[bus_addr] = pins
+
+    def _publish(self, topic: str, payload: str = None, qos: int = 0,
+                 retain: bool = False) -> mqtt.MQTTMessageInfo:
         return self.mqtt_client.publish(topic=topic,
                                         payload=payload,
                                         qos=qos,
                                         retain=retain
                                         )
+
+    @classmethod
+    def from_yaml(cls, visio_mqtt_client, yaml_path: Path):
+        import yaml
+
+        with yaml_path.open() as cfg_file:
+            mqtt_cfg = yaml.load(cfg_file, Loader=yaml.FullLoader)
+            _log.info(f'Creating {cls.__name__} from {yaml_path} ...')
+        return cls(visio_mqtt_client=visio_mqtt_client,
+                   config=mqtt_cfg
+                   )
 
     @staticmethod
     def decode(msg: mqtt.MQTTMessage):
@@ -71,6 +121,45 @@ class VisioMQTTApi(I2CRWMixin):
                                                )
         else:
             raise ValueError('Expected only BI or BO')
-        self.publish(topic=publish_topic,
-                     payload=payload,
-                     )
+        self._publish(topic=publish_topic,
+                      payload=payload,
+                      )
+
+    def read_i2c(self, obj_id: int, obj_type: int, dev_id: int) -> bool:
+        """
+        :param obj_id: first two numbers contains bus address. Then going pin number.
+                Example: obj_id=3701 -> bus_address=37, pin=01
+        """
+        bus_addr = int(str(obj_id)[:2])
+        pin_id = int(str(obj_id)[2:])
+
+        try:
+            return self.bi_pins[bus_addr][pin_id].value
+        except LookupError as e:
+            _log.warning(e)
+
+    def write_i2c(self, value: bool, obj_id: int, obj_type: int, dev_id: int):
+        """
+        :param value: True - Turn off. False - Turn on
+        :param dev_id: in hex. Example: 0x25
+        """
+        bus_addr = int(str(obj_id)[:2])
+        pin_id = int(str(obj_id)[2:])
+
+        self.bi_pins[bus_addr][pin_id].value = value
+
+    def write_with_check_i2c(self, value: bool, obj_id: int, obj_type: int, dev_id: int
+                             ) -> bool:
+        """
+        :return: the read value is equal to the written value
+        """
+        self.write_i2c(value=value,
+                       obj_id=obj_id,
+                       obj_type=obj_type,
+                       dev_id=dev_id
+                       )
+        rvalue = self.read_i2c(obj_id=obj_id,
+                               obj_type=obj_type,
+                               dev_id=dev_id
+                               )
+        return value == rvalue
