@@ -135,11 +135,12 @@ class VisioMQTTI2CApi:
         pin_id = int(str(obj_id)[2:])
 
         try:
-            v = self.bi_pins[bus_addr][pin_id].value
+            v = self.bi_pins[bus_addr - 1][pin_id].value
             _log.debug(f'Read: bus={bus_addr} pin={pin_id} value{v}')
             return v
         except LookupError as e:
-            _log.warning(e)
+            _log.warning(e,
+                         exc_info=True)
 
     def write_i2c(self, value: bool, obj_id: int):  # , obj_type: int, dev_id: int):
         """
