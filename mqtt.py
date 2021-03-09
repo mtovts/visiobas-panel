@@ -43,7 +43,7 @@ class VisioMQTTClient:  # (Thread):
         self._stopped = False
         self._connected = False
 
-        self._client = mqtt.Client(client_id='12',  # fixme
+        self._client = mqtt.Client(# client_id='12',  # fixme
                                    # clean_session=False,
                                    transport='tcp'
                                    )
