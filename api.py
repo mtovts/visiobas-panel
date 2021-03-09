@@ -97,7 +97,7 @@ class VisioMQTTI2CApi:
         publish_topic = topic.replace('Set', 'Site')
 
         if params['object_type'] == ObjType.BINARY_OUTPUT.id:
-            _is_equal = self.write_with_check_i2c(value=not bool(params['value']),
+            _is_equal = self.write_with_check_i2c(value=bool(params['value']),
                                                   obj_id=params['object_identifier'],
                                                   # obj_type=params['object_type'],
                                                   # dev_id=params['device_id']
@@ -147,6 +147,8 @@ class VisioMQTTI2CApi:
         :param obj_id: first two numbers contains bus address. Then going pin number.
                 Example: obj_id=3701 -> bus_address=37, pin=01
         """
+        value = not value
+
         bus_addr = int(str(obj_id)[:2])
         pin_id = int(str(obj_id)[2:])
 
