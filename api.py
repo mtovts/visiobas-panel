@@ -97,7 +97,7 @@ class VisioMQTTI2CApi:
         publish_topic = topic.replace('Set', 'Site')
 
         if params['object_type'] == ObjType.BINARY_OUTPUT.id:
-            _is_equal = self.write_with_check_i2c(value=bool(params['value']),
+            _is_equal = self.write_with_check_i2c(value=not bool(params['value']),
                                                   obj_id=params['object_identifier'],
                                                   # obj_type=params['object_type'],
                                                   # dev_id=params['device_id']
