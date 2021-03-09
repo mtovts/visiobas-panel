@@ -135,7 +135,7 @@ class VisioMQTTI2CApi:
         pin_id = int(str(obj_id)[2:])
 
         try:
-            v = self.bi_pins[bus_addr - 1][pin_id].value
+            v = not self.bi_pins[bus_addr - 1][pin_id].value
             _log.debug(f'Read: bus={bus_addr} pin={pin_id} value{v}')
             return v
         except LookupError as e:
