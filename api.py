@@ -56,7 +56,7 @@ class VisioMQTTI2CApi:
             self.bo_pins[bus_addr] = pins
 
     def _publish(self, topic: str, payload: str = None, qos: int = 0,
-                 retain: bool = False) -> mqtt.MQTTMessageInfo:
+                 retain: bool = True) -> mqtt.MQTTMessageInfo:
         return self.mqtt_client.publish(topic=topic,
                                         payload=payload,
                                         qos=qos,
