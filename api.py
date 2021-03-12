@@ -144,7 +144,7 @@ class VisioMQTTI2CApi:
 
         try:
             v = not self.pins[bus_addr][pin_id].value
-            _log.debug(f'Read: bus={bus_addr} pin={pin_id} value{v}')
+            _log.debug(f'Read: bus={bus_addr} pin={pin_id} value={v}')
             return v
         except LookupError as e:
             _log.warning(e,
@@ -180,6 +180,6 @@ class VisioMQTTI2CApi:
                                # obj_type=obj_type,
                                # dev_id=dev_id
                                )
-        res = value == rvalue
+        res = not value == rvalue  # because inverting value in read\write
         _log.debug(f'Write with check result={res}')
         return res
