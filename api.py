@@ -78,7 +78,6 @@ class VisioMQTTI2CApi:
 
         with yaml_path.open() as cfg_file:
             i2c_cfg = yaml.load(cfg_file, Loader=yaml.FullLoader)
-            print(i2c_cfg)
             _log.info(f'Creating {cls.__name__} from {yaml_path} ... {i2c_cfg}')
         return cls(visio_mqtt_client=visio_mqtt_client,
                    config=i2c_cfg
