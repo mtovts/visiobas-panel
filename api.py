@@ -5,7 +5,6 @@ from pathlib import Path
 
 import busio
 import digitalio
-import paho.mqtt.client as mqtt
 from adafruit_mcp230xx.mcp23008 import MCP23008
 
 from obj_type import ObjType
@@ -61,11 +60,12 @@ class VisioMQTTI2CApi:
         return {**self.bo_busses, **self.bi_busses}
 
     @property
-    def pins(self) -> dict[int, list]:
+    def pins(self):  # -> dict[int, list]:
         return {**self.bi_pins, **self.bo_pins}
 
-    def _publish(self, topic: str, payload: str = None, qos: int = 0,
-                 retain: bool = True) -> mqtt.MQTTMessageInfo:
+    def _publish(self, topic, payload=None, qos=0, retain=True):
+        # topic: str, payload: str = None, qos: int = 0,
+        # retain: bool = True) -> mqtt.MQTTMessageInfo:
         return self.mqtt_client.publish(topic=topic,
                                         payload=payload,
                                         qos=qos,
@@ -85,7 +85,7 @@ class VisioMQTTI2CApi:
                    )
 
     @staticmethod
-    def decode(msg: mqtt.MQTTMessage):
+    def decode(msg):  # mqtt.MQTTMessage):
         try:
             if isinstance(msg.payload, bytes):
                 content = loads(msg.payload.decode("utf-8", "ignore"))
@@ -98,7 +98,8 @@ class VisioMQTTI2CApi:
                 content = msg.payload
         return content
 
-    def rpc_value_panel(self, params: dict, topic: str) -> None:
+    def rpc_value_panel(self, params, topic):
+        # params: dict, topic: str) -> None:
         # todo: default value
         # todo: validate params
 
@@ -137,7 +138,7 @@ class VisioMQTTI2CApi:
                       payload=payload,
                       )
 
-    def read_i2c(self, obj_id: int):  # , obj_type: int, dev_id: int) -> bool:
+    def read_i2c(self, obj_id):  #: int):  # , obj_type: int, dev_id: int) -> bool:
         """
         :param obj_id: first two numbers contains bus address. Then going pin number.
                 Example: obj_id=3701 -> bus_address=37, pin=01
@@ -156,7 +157,8 @@ class VisioMQTTI2CApi:
                          exc_info=True
                          )
 
-    def write_i2c(self, value: bool, obj_id: int) -> None:  # , obj_type: int, dev_id: int):
+    def write_i2c(self, value, obj_id):
+        # value: bool, obj_id: int) -> None:  # , obj_type: int, dev_id: int):
         """
         :param obj_id: first two numbers contains bus address. Then going pin number.
                 Example: obj_id=3701 -> bus_address=37, pin=01
@@ -181,8 +183,9 @@ class VisioMQTTI2CApi:
                          exc_info=True
                          )
 
-    def write_with_check_i2c(self, value: bool, obj_id: int  # , obj_type: int, dev_id: int
-                             ) -> bool:
+    def write_with_check_i2c(self, value, obj_id):
+        # value: bool, obj_id: int  # , obj_type: int, dev_id: int
+        # ) -> bool:
         """
         :param obj_id: first two numbers contains bus address. Then going pin number.
                 Example: obj_id=3701 -> bus_address=37, pin=01
