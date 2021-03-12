@@ -55,6 +55,14 @@ class VisioMQTTI2CApi:
 
             self.bo_pins[bus_addr] = pins
 
+    @property
+    def buses(self) -> dict:
+        return {**self.bo_busses, **self.bi_busses}
+
+    @property
+    def pins(self) -> dict[int, list]:
+        return {**self.bi_pins, **self.bo_pins}
+
     def _publish(self, topic: str, payload: str = None, qos: int = 0,
                  retain: bool = True) -> mqtt.MQTTMessageInfo:
         return self.mqtt_client.publish(topic=topic,
@@ -135,7 +143,7 @@ class VisioMQTTI2CApi:
         pin_id = int(str(obj_id)[2:])
 
         try:
-            v = not self.bi_pins[bus_addr - 1][pin_id].value
+            v = not self.pins[bus_addr][pin_id].value
             _log.debug(f'Read: bus={bus_addr} pin={pin_id} value{v}')
             return v
         except LookupError as e:
