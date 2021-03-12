@@ -142,10 +142,11 @@ class VisioMQTTI2CApi:
         :param obj_id: first two numbers contains bus address. Then going pin number.
                 Example: obj_id=3701 -> bus_address=37, pin=01
         """
-        bus_addr = int(str(obj_id)[:2])  # fixme
-        pin_id = int(str(obj_id)[2:])
 
         try:
+            bus_addr = int(str(obj_id)[:2])  # fixme
+            pin_id = int(str(obj_id)[2:])
+
             # inverting because False=turn on, True=turn off
             v = not self.pins[bus_addr][pin_id].value
 
@@ -155,6 +156,8 @@ class VisioMQTTI2CApi:
             _log.warning(e,
                          exc_info=True
                          )
+        except ValueError as e:
+            _log.warning('Please, provide correct object_id (for splitting to bus and pin)')
 
     def write_i2c(self, value, obj_id):
         # value: bool, obj_id: int) -> None:  # , obj_type: int, dev_id: int):
@@ -181,6 +184,8 @@ class VisioMQTTI2CApi:
             _log.warning(e,
                          exc_info=True
                          )
+        except ValueError as e:
+            _log.warning('Please, provide correct object_id (for splitting to bus and pin)')
 
     def write_with_check_i2c(self, value, obj_id):
         # value: bool, obj_id: int  # , obj_type: int, dev_id: int
