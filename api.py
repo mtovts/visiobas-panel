@@ -1,4 +1,5 @@
 import logging
+import time
 from json import loads, JSONDecodeError
 from pathlib import Path
 
@@ -30,7 +31,7 @@ class VisioMQTTI2CApi:
         self.bi_busses = [MCP23008(self.i2c, address=addr)
                           for addr in self._config.get('bi_buses', [])]
         self.bo_busses = [MCP23008(self.i2c, address=addr)
-                          for addr in self._config.get('bo_buses', [])]
+                          for addr in self._config.get('bo_buses', {}).keys()]
         _log.debug(f'bo={self.bo_busses} bi={self.bi_busses}')
 
         # init pins
@@ -77,6 +78,7 @@ class VisioMQTTI2CApi:
 
         with yaml_path.open() as cfg_file:
             i2c_cfg = yaml.load(cfg_file, Loader=yaml.FullLoader)
+            print(i2c_cfg)
             _log.info(f'Creating {cls.__name__} from {yaml_path} ... {i2c_cfg}')
         return cls(visio_mqtt_client=visio_mqtt_client,
                    config=i2c_cfg
@@ -129,7 +131,8 @@ class VisioMQTTI2CApi:
                                                value,
                                                )
         else:
-            raise ValueError('Expected only BI or BO')
+            raise ValueError(
+                f'Expected only {ObjType.BINARY_INPUT} or {ObjType.BINARY_OUTPUT}')
         self._publish(topic=publish_topic,
                       payload=payload,
                       )
@@ -139,30 +142,44 @@ class VisioMQTTI2CApi:
         :param obj_id: first two numbers contains bus address. Then going pin number.
                 Example: obj_id=3701 -> bus_address=37, pin=01
         """
-        bus_addr = int(str(obj_id)[:2])
+        bus_addr = int(str(obj_id)[:2])  # fixme
         pin_id = int(str(obj_id)[2:])
 
         try:
+            # inverting because False=turn on, True=turn off
             v = not self.pins[bus_addr][pin_id].value
+
             _log.debug(f'Read: bus={bus_addr} pin={pin_id} value={v}')
             return v
         except LookupError as e:
             _log.warning(e,
-                         exc_info=True)
+                         exc_info=True
+                         )
 
-    def write_i2c(self, value: bool, obj_id: int):  # , obj_type: int, dev_id: int):
+    def write_i2c(self, value: bool, obj_id: int) -> None:  # , obj_type: int, dev_id: int):
         """
         :param obj_id: first two numbers contains bus address. Then going pin number.
                 Example: obj_id=3701 -> bus_address=37, pin=01
         """
-        value = not value
+        try:
+            value = not value
 
-        bus_addr = int(str(obj_id)[:2])
-        pin_id = int(str(obj_id)[2:])
+            bus_addr = int(str(obj_id)[:2])  # fixme
+            pin_id = int(str(obj_id)[2:])
 
-        _log.debug(f'Write bus={bus_addr}, pin={pin_id} value={value}')
+            _log.debug(f'Write bus={bus_addr}, pin={pin_id} value={value}')
 
-        self.bo_pins[bus_addr][pin_id].value = value
+            self.bo_pins[bus_addr][pin_id].value = value
+
+            # block for non-pulse relays
+            if self._config['bo_buses'][bus_addr]['delay'][pin_id]:
+                time.sleep(self._config['bo_buses'][bus_addr]['delay'][pin_id])
+                self.bo_pins[bus_addr][pin_id].value = not value
+
+        except LookupError as e:
+            _log.warning(e,
+                         exc_info=True
+                         )
 
     def write_with_check_i2c(self, value: bool, obj_id: int  # , obj_type: int, dev_id: int
                              ) -> bool:
