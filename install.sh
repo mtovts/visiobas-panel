@@ -6,7 +6,7 @@
 
 # cd /opt
 # sudo git clone https://github.com/mtovts/visiobas-panel visiobas-controller
-# cd /opt/visbas-controller
+# cd /opt/visiobas-controller
 # sudo sh install.sh
 
 # Set mqtt.yaml and i2c.yaml
@@ -23,7 +23,11 @@ sudo apt --assume-yes install mosquitto mosquitto-clients
 
 cd /opt/visbas-controller
 cp vb_controller.service /etc/systemd/system/vb_controller.service
-systemctl start vb_controller
+
+sudo systemctl daemon-reload
+sudo systemctl enable vb_controller
+sudo systemctl start  vb_controller
+#  sudo systemctl status dummy.service
 
 pip3 install -r requirements.txt
 
