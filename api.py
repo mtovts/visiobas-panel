@@ -50,7 +50,7 @@ class VisioMQTTI2CApi:
             pins = []
             for i in range(8):
                 pin = bus.get_pin(i)
-                pin.switch_to_output()
+                pin.switch_to_output(value=True)
                 pins.append(pin)
 
             self.bo_pins[bus_addr] = pins
