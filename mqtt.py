@@ -19,9 +19,9 @@ class VisioMQTTClient:  # (Thread):
                  config: dict,
                  # getting_queue: SimpleQueue = None
                  ):
-        """
-        :param gateway: Gateway or Panel
-        """
+        # """
+        # :param gateway: Gateway or Panel
+        # """
         # super().__init__()
         # self.setName(name=f'{self}-Thread')
         # self.setDaemon(True)
@@ -82,6 +82,8 @@ class VisioMQTTClient:  # (Thread):
 
     def run(self):
         """Main loop."""
+        self.api.start()
+
         while not self._stopped:  # not self._connected and
             if self._connected:
                 self._run_loop()
