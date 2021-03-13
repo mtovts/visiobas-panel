@@ -1,0 +1,12 @@
+[Unit]
+Description=Visiodesk periodic tools
+
+[Service]
+Type=simple
+ExecStart=/opt/visiobas-controller/vb_controller.sh
+User=root
+Group=root
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

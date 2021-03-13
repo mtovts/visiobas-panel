@@ -1,0 +1,11 @@
+host: host.com
+port: 1883
+username: username
+password: password
+
+qos: 0
+retain: True
+
+subscribe:
+  - Topic/to/subscribe/
+  - topics/to/subscribe/#

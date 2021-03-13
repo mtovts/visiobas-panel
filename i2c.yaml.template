@@ -1,0 +1,39 @@
+# buses can be explored by `i2cdetect -y 1` command
+# Note that the bus listings are in decimal format here.
+
+bi_buses:
+  - 30
+  - 31
+  - 32  # 0x20
+
+bo_buses:
+  35:
+    delay:
+      0: 1
+      1: 1
+      2: 1
+      3: 1
+      4: 1
+      5: 1
+      6: 1
+      7: 1
+  36:
+    delay:
+      0: 1
+      1: 1
+      2: 1
+      3: 1
+      4: 1
+      5: 1
+      6: 1
+      7: 1
+  37: # 0x25
+    delay:
+      0: 1
+      1: 1
+      2: 1
+      3: 1
+      4: 1
+      5: 1
+      6: 1
+      7: 1
