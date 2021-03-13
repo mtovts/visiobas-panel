@@ -8,7 +8,7 @@ from api import VisioMQTTI2CApi
 from result_code import ResultCode
 
 _log = getLogger(__name__)
-_base_dir = Path.cwd()
+_base_dir = Path(__file__).resolve().parent
 
 
 class VisioMQTTClient:  # (Thread):

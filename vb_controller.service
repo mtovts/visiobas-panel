@@ -1,12 +1,10 @@
 [Unit]
-Description=Visiodesk periodic tools
+Description=Visiobas Controller
 
 [Service]
 Type=simple
-ExecStart=/opt/visiobas-controller/vb_controller.sh
-User=root
-Group=root
-Restart=always
+ExecStart=/usr/bin/python3 /opt/visiobas-controller/main.py
+StandardInput=tty-force
 
 [Install]
 WantedBy=multi-user.target

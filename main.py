@@ -5,7 +5,7 @@ from pathlib import Path
 
 from mqtt import VisioMQTTClient
 
-_base_dir = Path.cwd()
+_base_dir = Path(__file__).resolve().parent
 _yaml_path = _base_dir / 'mqtt.yaml'
 
 if __name__ == '__main__':
