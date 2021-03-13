@@ -1,3 +1,5 @@
+device_id: 666
+
 host: host.com
 port: 1883
 username: username
@@ -7,5 +9,17 @@ qos: 0
 retain: True
 
 subscribe:
-  - Topic/to/subscribe/
-  - topics/to/subscribe/#
+  - Set/yard/#
+
+publish:
+  37:
+    bus_topic: Bus/topic
+    pin_topic:
+      0: Pin/topic/0
+      1: # if none - using bus topic
+      2: # if none - using bus topic
+      3: # if none - using bus topic
+      4: Pin/topic/4
+      5: Pin/topic/5
+      6: Pin/another/topic/6
+      7: Pin/another/topic/7

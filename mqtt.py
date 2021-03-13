@@ -76,6 +76,10 @@ class VisioMQTTClient:  # (Thread):
             config=mqtt_cfg
         )
 
+    @property
+    def publish_topics(self):  # -> dict[int, dict]
+        return self._config['publish']
+
     def run(self):
         """Main loop."""
         while not self._stopped:  # not self._connected and
@@ -187,11 +191,12 @@ class VisioMQTTClient:  # (Thread):
         msg_dct = self.api.decode(msg=message)
         _log.debug(f'Received {message.topic}:{msg_dct}')
         try:
-            if msg_dct.get('method') == 'value':
-                # todo: provide device_id and cache result (error) if device not polling
-                self.api.rpc_value_panel(params=msg_dct['params'],
-                                         topic=message.topic,
-                                         )
+            if msg_dct['params'].get('device_id') == self._config['device_id']:
+                if msg_dct.get('method') == 'value':
+                    # todo: provide device_id and cache result (error) if device not polling
+                    self.api.rpc_value_panel(params=msg_dct['params'],
+                                             topic=message.topic,
+                                             )
         except Exception as e:
             _log.warning(f'Error: {e} :{msg_dct}',
                          exc_info=True
