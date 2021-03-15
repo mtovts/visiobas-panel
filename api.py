@@ -2,7 +2,6 @@ import asyncio
 import logging
 from json import loads, JSONDecodeError
 from pathlib import Path
-from threading import Thread
 from time import sleep, time
 
 import busio
@@ -19,7 +18,7 @@ except NotImplementedError as e:
     _log.critical(e)
 
 
-class I2CConnector:  #(Thread):
+class I2CConnector:  # (Thread):
     def __init__(self, visio_mqtt_client, config: dict):  # , gateway):
         # super().__init__()
         # self.setName(name=f'{self}-Thread')
@@ -128,15 +127,21 @@ class I2CConnector:  #(Thread):
                     bus_id=bus_id,
                     realtime_interval=self.get_realtime_interval(bus_id=bus_id),
                     mqtt_interval=self.get_mqtt_interval(bus_id=bus_id),
+                    start_time=time()
                 ))
 
-    async def start_bus_polling(self, bus_id, realtime_interval, mqtt_interval) -> None:
+    async def start_bus_polling(self, bus_id,
+                                realtime_interval, mqtt_interval,
+                                start_time) -> None:
+
+        start_time_expired = False
         while bus_id in self._polling_buses:
             _t0 = time()
             for pin_id in range(len(self.bi_pins[bus_id])):
                 rvalue = self.read_i2c(bus_id=bus_id, pin_id=pin_id)
 
                 if rvalue != self.get_default(bus_id=bus_id, pin_id=pin_id):
+                    _log.debug('Non-default value - pub')
                     topic = self.get_topic(bus_id=bus_id, pin_id=pin_id)
                     payload = '{0} {1} {2} {3}'.format(self.device_id,
                                                        ObjType.BINARY_INPUT.id,
@@ -146,7 +151,9 @@ class I2CConnector:  #(Thread):
                     self.publish(topic=topic, payload=payload,
                                  qos=1, retain=True)
 
-                elif (time() - _t0) >= mqtt_interval:
+                elif (time() - start_time) >= mqtt_interval:
+                    start_time_expired = True
+                    _log.debug('Default value. Expired interval - pub')
                     topic = self.get_topic(bus_id=bus_id, pin_id=pin_id)
                     payload = '{0} {1} {2} {3}'.format(self.device_id,
                                                        ObjType.BINARY_INPUT.id,
@@ -155,10 +162,12 @@ class I2CConnector:  #(Thread):
                                                        )
                     self.publish(topic=topic, payload=payload,
                                  qos=0, retain=False)
+            if start_time_expired:
+                start_time += mqtt_interval
 
             _t_delta = time() - _t0
             delay = (realtime_interval - _t_delta) * 0.9
-            _log.info(f'Bus: {bus_id} polled for {round(_t_delta, ndigits=1)} sec '
+            _log.info(f'Bus: {bus_id} polled for {round(_t_delta, ndigits=3)} sec '
                       f'sleeping {delay} sec ...')
             await asyncio.sleep(delay)
 
