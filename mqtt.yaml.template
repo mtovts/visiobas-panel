@@ -13,6 +13,7 @@ subscribe:
 
 publish:
   37:
+    interval: 60 # in seconds
     bus_topic: Bus/topic
     pin_topic:
       0: Pin/topic/0

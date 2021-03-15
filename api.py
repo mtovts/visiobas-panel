@@ -1,7 +1,9 @@
+import asyncio
 import logging
 from json import loads, JSONDecodeError
 from pathlib import Path
-from time import sleep
+from threading import Thread
+from time import sleep, time
 
 import busio
 import digitalio
@@ -17,11 +19,11 @@ except NotImplementedError as e:
     _log.critical(e)
 
 
-class VisioMQTTI2CApi:  # (Thread):
+class I2CConnector(Thread):
     def __init__(self, visio_mqtt_client, config: dict):  # , gateway):
-        # super().__init__()
-        # self.setName(name=f'{self}-Thread')
-        # self.setDaemon(True)
+        super().__init__()
+        self.setName(name=f'{self}-Thread')
+        self.setDaemon(True)
 
         self.mqtt_client = visio_mqtt_client
 
@@ -32,6 +34,7 @@ class VisioMQTTI2CApi:  # (Thread):
         # init i2c buses
         self.bi_busses = [MCP23008(self.i2c, address=addr)
                           for addr in self._config.get('bi_buses', [])]
+
         self.bo_busses = [MCP23008(self.i2c, address=addr)
                           for addr in self._config.get('bo_buses', {}).keys()]
         _log.debug(f'bo={self.bo_busses} bi={self.bi_busses}')
@@ -58,22 +61,7 @@ class VisioMQTTI2CApi:  # (Thread):
 
             self.bo_pins[bus_addr] = pins
 
-    @property
-    def buses(self) -> dict:
-        return {**self.bo_busses, **self.bi_busses}
-
-    @property
-    def pins(self):  # -> dict[int, list]:
-        return {**self.bi_pins, **self.bo_pins}
-
-    def publish(self, topic, payload=None, qos=0, retain=True):
-        # topic: str, payload: str = None, qos: int = 0,
-        # retain: bool = True) -> mqtt.MQTTMessageInfo:
-        return self.mqtt_client.publish(topic=topic,
-                                        payload=payload,
-                                        qos=qos,
-                                        retain=retain
-                                        )
+        self._polling_buses = {**self.bi_busses}
 
     @classmethod
     def from_yaml(cls, visio_mqtt_client, yaml_path: Path):
@@ -85,6 +73,27 @@ class VisioMQTTI2CApi:  # (Thread):
         return cls(visio_mqtt_client=visio_mqtt_client,
                    config=i2c_cfg
                    )
+
+    @property
+    def buses(self):  # -> dict:
+        return {**self.bo_busses, **self.bi_busses}
+
+    @property
+    def pins(self):  # -> dict[int, list]:
+        return {**self.bi_pins, **self.bo_pins}
+
+    @property
+    def device_id(self):  # -> int
+        return self.mqtt_client.device_id
+
+    def publish(self, topic, payload=None, qos=0, retain=True):
+        # topic: str, payload: str = None, qos: int = 0,
+        # retain: bool = True) -> mqtt.MQTTMessageInfo:
+        return self.mqtt_client.publish(topic=topic,
+                                        payload=payload,
+                                        qos=qos,
+                                        retain=retain
+                                        )
 
     @staticmethod
     def decode(msg):  # mqtt.MQTTMessage):
@@ -101,13 +110,56 @@ class VisioMQTTI2CApi:  # (Thread):
         return content
 
     def run(self) -> None:
-        pass
+        asyncio.run(self.start_polling())
 
-    def rpc_value_panel(self, params, topic):
-        # TODO: REFACTOR!
+    async def start_polling(self):
+        _log.info(f'Start polling: {self._polling_buses.keys()}')
 
-        # params: dict, topic: str) -> None:
-        # todo: default value
+        for bus_id in self._polling_buses.keys():
+            await asyncio.ensure_future(
+                self.start_bus_polling(bus_id=bus_id,
+                                       interval=self.get_interval(bus_id=bus_id)
+                                       ))
+
+    async def start_bus_polling(self, bus_id, interval) -> None:
+        while bus_id in self._polling_buses:
+            t0 = time()
+            for pin_id in range(len(self.bi_pins[bus_id])):
+                rvalue = self.read_i2c(bus_id=bus_id, pin_id=pin_id)
+                topic = self.get_topic(bus_id=bus_id, pin_id=pin_id)
+
+                payload = '{0} {1} {2} {3}'.format(self.device_id,
+                                                   ObjType.BINARY_INPUT.id,
+                                                   f'{bus_id}0{pin_id}',
+                                                   int(rvalue),
+                                                   )
+                self.publish(topic=topic, payload=payload,
+                             qos=0, retain=False)
+
+            t_delta = round(time() - t0, ndigits=1)
+            delay = (interval - t_delta) * 0.9
+            _log.info(f'Bus: {bus_id} polled for {t_delta} sec sleeping {delay} sec ...')
+
+            await asyncio.sleep(delay)
+
+    def get_topic(self, bus_id, pin_id):  # -> str:
+        topic = self.mqtt_client.publish_topics[bus_id]['pin_topic'].get(pin_id)
+        if topic is None:
+            topic = self.mqtt_client.publish_topics[bus_id]['bus_topic']
+        return topic
+
+    def get_default(self, bus_id, pin_id):  # -> bool
+        default_value = self._config['bo_buses'][bus_id]['default'][pin_id]
+        if default_value is None:
+            default_value = self._config['bo_buses'][bus_id]['default']['bus']
+        return default_value
+
+    def get_interval(self, bus_id):  # -> int:
+        return self.mqtt_client.bus_intervals[bus_id]
+
+    def rpc_value_panel(self, params):
+        # params: dict) -> None:
+
         # todo: validate params
 
         _log.debug(f'Processing \'value\' method with params: {params}')
@@ -119,83 +171,24 @@ class VisioMQTTI2CApi:  # (Thread):
         bus_id = int(str(obj_id)[:2])
         pin_id = int(str(obj_id)[2:])
 
-        topic = self.mqtt_client.publish_topics[bus_id]['pin_topic'].get(pin_id)
-        if topic is None:
-            topic = self.mqtt_client.publish_topics[bus_id]['bus_topic']
-
         if params['object_type'] == ObjType.BINARY_OUTPUT.id:
             delay = self._config['bo_buses'][bus_id]['delay'][pin_id]
             value = bool(params['value'])
-            if delay:
-                _is_eq = self._wr(value=value,
-                                  bus_id=bus_id,
-                                  pin_id=pin_id,
-                                  )
-                if _is_eq:
-                    payload = '{0} {1} {2} {3}'.format(params['device_id'],
-                                                       params['object_type'],
-                                                       params['object_identifier'],
-                                                       int(value),
-                                                       )
-                    self.publish(topic=topic,
-                                 payload=payload,
-                                 qos=1
-                                 )
-                sleep(delay)
 
-                _is_eq = self._wr(value=not value,
-                                  bus_id=bus_id,
-                                  pin_id=pin_id,
-                                  )
-                if _is_eq:
-                    payload = '{0} {1} {2} {3}'.format(params['device_id'],
-                                                       params['object_type'],
-                                                       params['object_identifier'],
-                                                       int(not value),
-                                                       )
-                    self.publish(topic=topic,
-                                 payload=payload,
-                                 qos=1
-                                 )
+            if value == self.get_default(bus_id=bus_id, pin_id=pin_id):
+                _log.debug(f'Received default value: {value}')
+                return
+
+            if delay:
+                self._wr_p_s_wr_p(value=value, bus_id=bus_id, pin_id=pin_id, delay=delay)
             else:
-                _is_eq = self._wr(value=bool(params['value']),
-                                  bus_id=bus_id,
-                                  pin_id=pin_id,
-                                  )
-                if _is_eq:
-                    payload = '{0} {1} {2} {3}'.format(params['device_id'],
-                                                       params['object_type'],
-                                                       params['object_identifier'],
-                                                       int(value),
-                                                       )
-                    self.publish(topic=topic,
-                                 payload=payload,
-                                 qos=1
-                                 )
+                self._wr_p(value=value, bus_id=bus_id, pin_id=pin_id)
+
         elif params['object_type'] == ObjType.BINARY_INPUT.id:
-            value = self.read_i2c(bus_id=bus_id,
-                                  pin_id=pin_id
-                                  )
-            payload = '{0} {1} {2} {3}'.format(params['device_id'],
-                                               params['object_type'],
-                                               params['object_identifier'],
-                                               value,
-                                               )
-            self.publish(topic=topic,
-                         payload=payload,
-                         qos=1
-                         )
+            self._r_p(bus_id=bus_id, pin_id=pin_id)
         else:
             raise ValueError(
                 f'Expected only {ObjType.BINARY_INPUT} or {ObjType.BINARY_OUTPUT}')
-
-        # topic = self.mqtt_client.publish_topics[bus_id]['pin_topic'][pin_id]
-        # if topic is None:
-        #     topic = self.mqtt_client.publish_topics[bus_id]['bus_topic']
-        #
-        # self._publish(topic=topic,
-        #               payload=payload,
-        #               )
 
     def read_i2c(self, bus_id, pin_id):  #: int):  # , obj_type: int, dev_id: int) -> bool:
         try:
@@ -210,17 +203,24 @@ class VisioMQTTI2CApi:  # (Thread):
         except ValueError:
             _log.warning('Please, provide correct object_id (for splitting to bus and pin)')
 
+    def _r_p(self, bus_id, pin_id):
+        value = self.read_i2c(bus_id=bus_id, pin_id=pin_id)
+        payload = '{0} {1} {2} {3}'.format(self.device_id,
+                                           ObjType.BINARY_INPUT.id,
+                                           f'{bus_id}0{pin_id}',
+                                           value,
+                                           )
+        self.publish(topic=self.get_topic(bus_id=bus_id, pin_id=pin_id),
+                     payload=payload,
+                     qos=1, retain=True
+                     )
+
     def write_i2c(self, value, bus_id, pin_id):
         # value: bool, obj_id: int) -> None:  # , obj_type: int, dev_id: int):
         try:
             value = not value
             _log.debug(f'Write bus={bus_id}, pin={pin_id} value={value}')
             self.bo_pins[bus_id][pin_id].value = value
-
-            # # delays for non-pulse relays
-            # if self._config['bo_buses'][bus_id]['delay'][pin_id]:
-            #     time.sleep(self._config['bo_buses'][bus_id]['delay'][pin_id])
-            #     self.bo_pins[bus_id][pin_id].value = not value
 
         except LookupError as e:
             _log.warning(e,
@@ -229,9 +229,8 @@ class VisioMQTTI2CApi:  # (Thread):
         except ValueError:
             _log.warning('Please, provide correct object_id (for splitting to bus and pin)')
 
-    def _wr(self, value, bus_id, pin_id):
-        # value: bool, obj_id: int  # , obj_type: int, dev_id: int
-        # ) -> bool:
+    def _wr_i2c(self, value, bus_id, pin_id):
+        # value: bool, obj_id: int  # , obj_type: int, dev_id: int) -> bool:
         self.write_i2c(value=value,
                        bus_id=bus_id,
                        pin_id=pin_id
@@ -239,19 +238,25 @@ class VisioMQTTI2CApi:  # (Thread):
         rvalue = self.read_i2c(bus_id=bus_id,
                                pin_id=pin_id
                                )
-        res = value == rvalue
+        res = value == rvalue  # because inverted
         _log.debug(f'Write with check result={res}')
         return res
 
-    # def wr_pulse(self, value, bus_id, pin_id, delay, topic):
-    #     self.wr(value=value,
-    #             bus_id=bus_id,
-    #             pin_id=pin_id
-    #             )
-    #     # self._publish()
-    #     time.sleep(delay)
-    #     self.wr(value=not value,
-    #             bus_id=bus_id,
-    #             pin_id=pin_id
-    #             )
-    #     # self._publish()
+    def _wr_p(self, value, bus_id, pin_id):
+        _is_eq = self._wr_i2c(value=value, bus_id=bus_id, pin_id=pin_id)
+        if _is_eq:
+            payload = '{0} {1} {2} {3}'.format(self.device_id,
+                                               ObjType.BINARY_OUTPUT.id,
+                                               f'{bus_id}0{pin_id}',
+                                               int(value),
+                                               )
+            self.publish(topic=self.get_topic(bus_id=bus_id, pin_id=pin_id),
+                         payload=payload,
+                         qos=1, retain=True
+                         )
+
+    def _wr_p_s_wr_p(self, value, bus_id, pin_id, delay):
+        self._wr_p(value=value, bus_id=bus_id, pin_id=pin_id)
+        sleep(delay)
+        value = not value
+        self._wr_p(value=value, bus_id=bus_id, pin_id=pin_id)
