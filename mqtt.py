@@ -60,6 +60,10 @@ class VisioMQTTClient:  # (Thread):
         self.api = I2CConnector.from_yaml(visio_mqtt_client=self,
                                           yaml_path=_base_dir / 'i2c.yaml'
                                           )
+        poll_tread = Thread(target=self.api.run, daemon=True)
+        poll_tread.start()
+
+        self.api.start()
         self.topics = [(topic, self._qos) for topic in self._config['subscribe']]
 
     def __repr__(self) -> str:
@@ -94,7 +98,6 @@ class VisioMQTTClient:  # (Thread):
 
     def run(self):
         """Main loop."""
-        self.api.start()
 
         while not self._stopped:  # not self._connected and
             if self._connected:
@@ -113,11 +116,7 @@ class VisioMQTTClient:  # (Thread):
                                )
 
     def _run_loop(self):
-        """Listen queue from verifier.
-        When receive data from verifier - publish it to MQTT.
-
-        Designed as an endless loop. CAn be stopped from gateway thread.
-        """
+        """Designed as an endless loop. CAn be stopped from gateway thread."""
         # self.subscribe(topics=self.topics)
         while not self._stopped:
             try:
@@ -208,10 +207,12 @@ class VisioMQTTClient:  # (Thread):
             if msg_dct['params'].get('device_id') == self._config['device_id']:
                 if msg_dct.get('method') == 'value':
                     # TODO: ADD THREAD POOL
-                    t = Thread(target=self.api.rpc_value_panel,
-                               kwargs={'params': msg_dct['params']})
-                    t.start()
-                    t.join()
+                    rpc_value_tread = Thread(target=self.api.rpc_value_panel,
+                                             kwargs={'params': msg_dct['params']},
+                                             daemon=True
+                                             )
+                    rpc_value_tread.start()
+                    # rpc_value_tread.join()
 
                     # todo: provide device_id and cache result (error) if device not polling
                     # self.api.rpc_value_panel(params=msg_dct['params'],

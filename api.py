@@ -19,11 +19,11 @@ except NotImplementedError as e:
     _log.critical(e)
 
 
-class I2CConnector(Thread):
+class I2CConnector:  #(Thread):
     def __init__(self, visio_mqtt_client, config: dict):  # , gateway):
-        super().__init__()
-        self.setName(name=f'{self}-Thread')
-        self.setDaemon(True)
+        # super().__init__()
+        # self.setName(name=f'{self}-Thread')
+        # self.setDaemon(True)
 
         self.mqtt_client = visio_mqtt_client
 
@@ -93,7 +93,7 @@ class I2CConnector(Thread):
     def device_id(self):  # -> int
         return self.mqtt_client.device_id
 
-    def publish(self, topic, payload=None, qos=0, retain=True):
+    def publish(self, topic, payload=None, qos=0, retain=False):
         # topic: str, payload: str = None, qos: int = 0,
         # retain: bool = True) -> mqtt.MQTTMessageInfo:
         return self.mqtt_client.publish(topic=topic,
