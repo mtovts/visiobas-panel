@@ -33,15 +33,15 @@ class I2CConnector(Thread):
 
         # init i2c buses
         self.bi_busses = [MCP23008(self.i2c, address=addr)
-                          for addr in self._config.get('bi_buses', [])]
+                          for addr in self.bi_bus_ids]
 
         self.bo_busses = [MCP23008(self.i2c, address=addr)
-                          for addr in self._config.get('bo_buses', {}).keys()]
-        _log.debug(f'bo={self.bo_busses} bi={self.bi_busses}')
+                          for addr in self.bo_bus_ids]
+        _log.debug(f'Buses: bo={self.bo_bus_ids} bi={self.bi_bus_ids}')
 
         # init pins
         self.bi_pins = {}
-        for bus, bus_addr in zip(self.bi_busses, self._config.get('bi_buses', [])):
+        for bus, bus_addr in zip(self.bi_busses, self.bi_bus_ids):
             pins = []
             for i in range(8):
                 pin = bus.get_pin(i)
@@ -52,7 +52,7 @@ class I2CConnector(Thread):
             self.bi_pins[bus_addr] = pins
 
         self.bo_pins = {}
-        for bus, bus_addr in zip(self.bo_busses, self._config.get('bo_buses', [])):
+        for bus, bus_addr in zip(self.bo_busses, self.bo_bus_ids):
             pins = []
             for i in range(8):
                 pin = bus.get_pin(i)
@@ -61,7 +61,15 @@ class I2CConnector(Thread):
 
             self.bo_pins[bus_addr] = pins
 
-        self._polling_buses = self._config.get('bi_buses', [])
+        self._polling_buses = self.bi_bus_ids
+
+    @property
+    def bi_bus_ids(self):
+        return list(self._config.get('bi_buses', {}).keys())
+
+    @property
+    def bo_bus_ids(self):
+        return list(self._config.get('bo_buses', {}).keys())
 
     @classmethod
     def from_yaml(cls, visio_mqtt_client, yaml_path: Path):
@@ -73,13 +81,9 @@ class I2CConnector(Thread):
         return cls(visio_mqtt_client=visio_mqtt_client,
                    config=i2c_cfg
                    )
-    
+
     def __repr__(self):
         return self.__class__.__name__
-
-    # @property
-    # def buses(self):  # -> dict:
-    #     return {**self.bo_busses, **self.bi_busses}
 
     @property
     def pins(self):  # -> dict[int, list]:
@@ -120,29 +124,42 @@ class I2CConnector(Thread):
 
         for bus_id in self._polling_buses:
             await asyncio.ensure_future(
-                self.start_bus_polling(bus_id=bus_id,
-                                       interval=self.get_interval(bus_id=bus_id)
-                                       ))
+                self.start_bus_polling(
+                    bus_id=bus_id,
+                    realtime_interval=self.get_realtime_interval(bus_id=bus_id),
+                    mqtt_interval=self.get_mqtt_interval(bus_id=bus_id),
+                ))
 
-    async def start_bus_polling(self, bus_id, interval) -> None:
+    async def start_bus_polling(self, bus_id, realtime_interval, mqtt_interval) -> None:
         while bus_id in self._polling_buses:
-            t0 = time()
+            _t0 = time()
             for pin_id in range(len(self.bi_pins[bus_id])):
                 rvalue = self.read_i2c(bus_id=bus_id, pin_id=pin_id)
-                topic = self.get_topic(bus_id=bus_id, pin_id=pin_id)
 
-                payload = '{0} {1} {2} {3}'.format(self.device_id,
-                                                   ObjType.BINARY_INPUT.id,
-                                                   f'{bus_id}0{pin_id}',
-                                                   int(rvalue),
-                                                   )
-                self.publish(topic=topic, payload=payload,
-                             qos=0, retain=False)
+                if rvalue != self.get_default(bus_id=bus_id, pin_id=pin_id):
+                    topic = self.get_topic(bus_id=bus_id, pin_id=pin_id)
+                    payload = '{0} {1} {2} {3}'.format(self.device_id,
+                                                       ObjType.BINARY_INPUT.id,
+                                                       f'{bus_id}0{pin_id}',
+                                                       int(rvalue),
+                                                       )
+                    self.publish(topic=topic, payload=payload,
+                                 qos=1, retain=True)
 
-            t_delta = round(time() - t0, ndigits=1)
-            delay = (interval - t_delta) * 0.9
-            _log.info(f'Bus: {bus_id} polled for {t_delta} sec sleeping {delay} sec ...')
+                elif (time() - _t0) >= mqtt_interval:
+                    topic = self.get_topic(bus_id=bus_id, pin_id=pin_id)
+                    payload = '{0} {1} {2} {3}'.format(self.device_id,
+                                                       ObjType.BINARY_INPUT.id,
+                                                       f'{bus_id}0{pin_id}',
+                                                       int(rvalue),
+                                                       )
+                    self.publish(topic=topic, payload=payload,
+                                 qos=0, retain=False)
 
+            _t_delta = time() - _t0
+            delay = (realtime_interval - _t_delta) * 0.9
+            _log.info(f'Bus: {bus_id} polled for {round(_t_delta, ndigits=1)} sec '
+                      f'sleeping {delay} sec ...')
             await asyncio.sleep(delay)
 
     def get_topic(self, bus_id, pin_id):  # -> str:
@@ -152,13 +169,21 @@ class I2CConnector(Thread):
         return topic
 
     def get_default(self, bus_id, pin_id):  # -> bool
-        default_value = self._config['bo_buses'][bus_id]['default'][pin_id]
+        buses = {**self._config['bo_buses'], **self._config['bi_buses']}
+
+        default_value = buses[bus_id]['default'][pin_id]
         if default_value is None:
-            default_value = self._config['bo_buses'][bus_id]['default']['bus']
+            default_value = buses[bus_id]['default']['bus']
         return default_value
 
-    def get_interval(self, bus_id):  # -> int:
+    def get_mqtt_interval(self, bus_id):  # -> int:
         return self.mqtt_client.bus_intervals[bus_id]
+
+    def get_realtime_interval(self, bus_id):  # -> float
+        return self._config['bi_buses'][bus_id]['realtime_interval']
+
+    def get_pulse_delay(self, bus_id, pin_id):
+        return self._config['bo_buses'][bus_id]['pulse_delay'][pin_id]
 
     def rpc_value_panel(self, params):
         # params: dict) -> None:
@@ -175,7 +200,7 @@ class I2CConnector(Thread):
         pin_id = int(str(obj_id)[2:])
 
         if params['object_type'] == ObjType.BINARY_OUTPUT.id:
-            delay = self._config['bo_buses'][bus_id]['delay'][pin_id]
+            delay = self.get_pulse_delay(bus_id=bus_id, pin_id=pin_id)
             value = bool(params['value'])
 
             if value == self.get_default(bus_id=bus_id, pin_id=pin_id):
