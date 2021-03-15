@@ -113,7 +113,7 @@ class I2CConnector(Thread):
         asyncio.run(self.start_polling())
 
     async def start_polling(self):
-        _log.info(f'Start polling: {self._polling_buses.keys()}')
+        _log.info(f'Start polling: {self._polling_buses}')
 
         for bus_id in self._polling_buses.keys():
             await asyncio.ensure_future(
