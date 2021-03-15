@@ -63,7 +63,7 @@ class VisioMQTTClient:  # (Thread):
         poll_tread = Thread(target=self.api.run, daemon=True)
         poll_tread.start()
 
-        self.api.start()
+        # self.api.start()
         self.topics = [(topic, self._qos) for topic in self._config['subscribe']]
 
     def __repr__(self) -> str:
