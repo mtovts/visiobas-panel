@@ -73,6 +73,9 @@ class I2CConnector(Thread):
         return cls(visio_mqtt_client=visio_mqtt_client,
                    config=i2c_cfg
                    )
+    
+    def __repr__(self):
+        return self.__class__.__name__
 
     # @property
     # def buses(self):  # -> dict:
