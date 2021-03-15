@@ -171,7 +171,7 @@ class I2CConnector:  #(Thread):
     def get_default(self, bus_id, pin_id):  # -> bool
         buses = {**self._config['bo_buses'], **self._config['bi_buses']}
 
-        default_value = buses[bus_id]['default'][pin_id]
+        default_value = buses[bus_id]['default'].get(pin_id)
         if default_value is None:
             default_value = buses[bus_id]['default']['bus']
         return default_value
