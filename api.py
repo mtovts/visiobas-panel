@@ -203,7 +203,7 @@ class I2CConnector:  #(Thread):
             delay = self.get_pulse_delay(bus_id=bus_id, pin_id=pin_id)
             value = bool(params['value'])
 
-            if value == self.get_default(bus_id=bus_id, pin_id=pin_id):
+            if value != self.get_default(bus_id=bus_id, pin_id=pin_id):
                 _log.debug(f'Received default value: {value}')
                 return
 
