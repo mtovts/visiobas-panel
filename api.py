@@ -61,7 +61,7 @@ class I2CConnector(Thread):
 
             self.bo_pins[bus_addr] = pins
 
-        self._polling_buses = {**self.bi_busses}
+        self._polling_buses = self._config.get('bi_buses', [])
 
     @classmethod
     def from_yaml(cls, visio_mqtt_client, yaml_path: Path):
@@ -74,9 +74,9 @@ class I2CConnector(Thread):
                    config=i2c_cfg
                    )
 
-    @property
-    def buses(self):  # -> dict:
-        return {**self.bo_busses, **self.bi_busses}
+    # @property
+    # def buses(self):  # -> dict:
+    #     return {**self.bo_busses, **self.bi_busses}
 
     @property
     def pins(self):  # -> dict[int, list]:
