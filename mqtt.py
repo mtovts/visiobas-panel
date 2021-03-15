@@ -1,10 +1,11 @@
 import time
 from logging import getLogger
 from pathlib import Path
+from threading import Thread
 
 import paho.mqtt.client as mqtt
 
-from api import VisioMQTTI2CApi
+from api import I2CConnector
 from result_code import ResultCode
 
 _log = getLogger(__name__)
@@ -42,9 +43,9 @@ class VisioMQTTClient:  # (Thread):
         self._stopped = False
         self._connected = False
 
-        self._client = mqtt.Client(  # client_id='12',  # fixme
-            # clean_session=False,
-            transport='tcp'
+        self._client = mqtt.Client(
+            transport='tcp',
+            # transport='websockets'
         )
         # self._client.enable_logger()  # logger=logger
         self._client.username_pw_set(username=self._username, password=self._password)
@@ -56,9 +57,9 @@ class VisioMQTTClient:  # (Thread):
         self._client.on_message = self._on_message_cb
         self._client.on_publish = self._on_publish_cb
 
-        self.api = VisioMQTTI2CApi.from_yaml(visio_mqtt_client=self,
-                                             yaml_path=_base_dir / 'i2c.yaml'
-                                             )
+        self.api = I2CConnector.from_yaml(visio_mqtt_client=self,
+                                          yaml_path=_base_dir / 'i2c.yaml'
+                                          )
         self.topics = [(topic, self._qos) for topic in self._config['subscribe']]
 
     def __repr__(self) -> str:
@@ -75,6 +76,17 @@ class VisioMQTTClient:  # (Thread):
             # getting_queue=getting_queue,
             config=mqtt_cfg
         )
+
+    @property
+    def device_id(self):  # -> int:
+        return self._config['device_id']
+
+    @property
+    def bus_intervals(self):  # -> dict[int, int]
+        d = {}
+        for bus_id in self._config['publish']:
+            d[bus_id] = self._config['publish'][bus_id]['interval']
+        return d
 
     @property
     def publish_topics(self):  # -> dict[int, dict]
@@ -195,10 +207,16 @@ class VisioMQTTClient:  # (Thread):
         try:
             if msg_dct['params'].get('device_id') == self._config['device_id']:
                 if msg_dct.get('method') == 'value':
+                    # TODO: ADD THREAD POOL
+                    t = Thread(target=self.api.rpc_value_panel,
+                               kwargs={'params': msg_dct['params']})
+                    t.start()
+                    t.join()
+
                     # todo: provide device_id and cache result (error) if device not polling
-                    self.api.rpc_value_panel(params=msg_dct['params'],
-                                             topic=message.topic,
-                                             )
+                    # self.api.rpc_value_panel(params=msg_dct['params'],
+                    #                          # topic=message.topic,
+                    #                          )
         except Exception as e:
             _log.warning(f'Error: {e} :{msg_dct}',
                          exc_info=True
