@@ -62,6 +62,16 @@ class I2CConnector:  # (Thread):
 
         self._polling_buses = self.bi_bus_ids
 
+        self._last_values = {bi_bus_id: {0: None,
+                                         1: None,
+                                         2: None,
+                                         3: None,
+                                         4: None,
+                                         5: None,
+                                         6: None,
+                                         7: None,
+                                         } for bi_bus_id in self.bi_bus_ids}
+
     @property
     def bi_bus_ids(self):
         return list(self._config.get('bi_buses', {}).keys())
@@ -140,8 +150,21 @@ class I2CConnector:  # (Thread):
             for pin_id in range(len(self.bi_pins[bus_id])):
                 rvalue = self.read_i2c(bus_id=bus_id, pin_id=pin_id)
 
-                if rvalue != self.get_default(bus_id=bus_id, pin_id=pin_id):
-                    _log.debug('Non-default value - pub')
+                # if rvalue != self.get_default(bus_id=bus_id, pin_id=pin_id):
+                #     _log.debug('Non-default value - pub')
+                #     topic = self.get_topic(bus_id=bus_id, pin_id=pin_id)
+                #     payload = '{0} {1} {2} {3}'.format(self.device_id,
+                #                                        ObjType.BINARY_INPUT.id,
+                #                                        f'{bus_id}0{pin_id}',
+                #                                        int(rvalue),
+                #                                        )
+                #     self.publish(topic=topic, payload=payload,
+                #                  qos=1, retain=True)
+
+                if rvalue != self._last_values[bus_id][pin_id]:
+                    self._last_values[bus_id][pin_id] = rvalue
+                    _log.debug('Not equal last value - pub')
+
                     topic = self.get_topic(bus_id=bus_id, pin_id=pin_id)
                     payload = '{0} {1} {2} {3}'.format(self.device_id,
                                                        ObjType.BINARY_INPUT.id,
