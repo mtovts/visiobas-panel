@@ -94,7 +94,7 @@ class VisioMQTTClient:  # (Thread):
 
     def run(self):
         """Main loop."""
-        # self.api.start()
+        self.api.start()
 
         while not self._stopped:  # not self._connected and
             if self._connected:
