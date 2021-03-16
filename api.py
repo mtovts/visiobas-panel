@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from json import loads, JSONDecodeError
 from pathlib import Path
 from time import sleep, time
 
@@ -9,6 +8,7 @@ import digitalio
 from adafruit_mcp230xx.mcp23008 import MCP23008
 
 from obj_type import ObjType
+from params_schema import ParamsModel
 
 _log = logging.getLogger(__name__)
 
@@ -111,19 +111,19 @@ class I2CConnector:  # (Thread):
                                         retain=retain
                                         )
 
-    @staticmethod
-    def decode(msg):  # mqtt.MQTTMessage):
-        try:
-            if isinstance(msg.payload, bytes):
-                content = loads(msg.payload.decode("utf-8", "ignore"))
-            else:
-                content = loads(msg.payload)
-        except JSONDecodeError:
-            if isinstance(msg.payload, bytes):
-                content = msg.payload.decode("utf-8", "ignore")
-            else:
-                content = msg.payload
-        return content
+    # @staticmethod
+    # def decode(msg):  # mqtt.MQTTMessage):
+    #     try:
+    #         if isinstance(msg.payload, bytes):
+    #             content = loads(msg.payload.decode("utf-8", "ignore"))
+    #         else:
+    #             content = loads(msg.payload)
+    #     except JSONDecodeError:
+    #         if isinstance(msg.payload, bytes):
+    #             content = msg.payload.decode("utf-8", "ignore")
+    #         else:
+    #             content = msg.payload
+    #     return content
 
     def run(self) -> None:
         asyncio.run(self.start_polling())
@@ -187,6 +187,7 @@ class I2CConnector:  # (Thread):
                                  qos=0, retain=False)
             if start_time_expired:
                 start_time += mqtt_interval
+                start_time_expired = False
 
             _t_delta = time() - _t0
             delay = (realtime_interval - _t_delta) * 0.9
@@ -217,23 +218,23 @@ class I2CConnector:  # (Thread):
     def get_pulse_delay(self, bus_id, pin_id):
         return self._config['bo_buses'][bus_id]['pulse_delay'][pin_id]
 
-    def rpc_value_panel(self, params):
+    def rpc_value(self, params):
         # params: dict) -> None:
 
-        # todo: validate params
+        params = ParamsModel(**params)
 
         _log.debug(f'Processing \'value\' method with params: {params}')
 
-        obj_id = params['object_identifier']
+        obj_id = params.object_identifier
         # first two numbers in object_id contains bus address.
         # Then going pin number.
         # Example: obj_id=3701 -> bus_address=37, pin=01
         bus_id = int(str(obj_id)[:2])
         pin_id = int(str(obj_id)[2:])
 
-        if params['object_type'] == ObjType.BINARY_OUTPUT.id:
+        if params.object_type == ObjType.BINARY_OUTPUT.id:
             delay = self.get_pulse_delay(bus_id=bus_id, pin_id=pin_id)
-            value = bool(params['value'])
+            value = bool(params.value)
 
             if value == self.get_default(bus_id=bus_id, pin_id=pin_id):
                 _log.debug(f'Received default value: {value}')
@@ -244,7 +245,7 @@ class I2CConnector:  # (Thread):
             else:
                 self._wr_p(value=value, bus_id=bus_id, pin_id=pin_id)
 
-        elif params['object_type'] == ObjType.BINARY_INPUT.id:
+        elif params.object_type == ObjType.BINARY_INPUT.id:
             self._r_p(bus_id=bus_id, pin_id=pin_id)
         else:
             raise ValueError(
@@ -272,8 +273,7 @@ class I2CConnector:  # (Thread):
                                            )
         self.publish(topic=self.get_topic(bus_id=bus_id, pin_id=pin_id),
                      payload=payload,
-                     qos=1, retain=True
-                     )
+                     qos=1, retain=True)
 
     def write_i2c(self, value, bus_id, pin_id):
         # value: bool, obj_id: int) -> None:  # , obj_type: int, dev_id: int):
@@ -291,14 +291,9 @@ class I2CConnector:  # (Thread):
 
     def _wr_i2c(self, value, bus_id, pin_id):
         # value: bool, obj_id: int  # , obj_type: int, dev_id: int) -> bool:
-        self.write_i2c(value=value,
-                       bus_id=bus_id,
-                       pin_id=pin_id
-                       )
-        rvalue = self.read_i2c(bus_id=bus_id,
-                               pin_id=pin_id
-                               )
-        res = value == rvalue  # because inverted
+        self.write_i2c(value=value, bus_id=bus_id, pin_id=pin_id)
+        rvalue = self.read_i2c(bus_id=bus_id, pin_id=pin_id)
+        res = value == rvalue
         _log.debug(f'Write with check result={res}')
         return res
 
@@ -312,8 +307,7 @@ class I2CConnector:  # (Thread):
                                                )
             self.publish(topic=self.get_topic(bus_id=bus_id, pin_id=pin_id),
                          payload=payload,
-                         qos=1, retain=True
-                         )
+                         qos=1, retain=True)
 
     def _wr_p_s_wr_p(self, value, bus_id, pin_id, delay):
         self._wr_p(value=value, bus_id=bus_id, pin_id=pin_id)

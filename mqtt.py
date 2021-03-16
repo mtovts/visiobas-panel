@@ -1,4 +1,5 @@
 import time
+from json import loads, JSONDecodeError
 from logging import getLogger
 from pathlib import Path
 from threading import Thread
@@ -202,24 +203,33 @@ class VisioMQTTClient:  # (Thread):
                        )
 
     def _on_message_cb(self, client, userdata, message):  #: mqtt.MQTTMessage):
-        msg_dct = self.api.decode(msg=message)
+        msg_dct = self.decode(msg=message)
         _log.debug(f'Received {message.topic}:{msg_dct}')
         try:
             if msg_dct['params'].get('device_id') == self._config['device_id']:
                 if msg_dct.get('method') == 'value':
                     # TODO: ADD THREAD POOL
-                    rpc_value_tread = Thread(target=self.api.rpc_value_panel,
+                    rpc_value_tread = Thread(target=self.api.rpc_value,
                                              kwargs={'params': msg_dct['params']},
                                              daemon=True
                                              )
                     rpc_value_tread.start()
-                    # rpc_value_tread.join()
 
-                    # todo: provide device_id and cache result (error) if device not polling
-                    # self.api.rpc_value_panel(params=msg_dct['params'],
-                    #                          # topic=message.topic,
-                    #                          )
         except Exception as e:
             _log.warning(f'Error: {e} :{msg_dct}',
                          exc_info=True
                          )
+
+    @staticmethod
+    def decode(msg):  # mqtt.MQTTMessage):
+        try:
+            if isinstance(msg.payload, bytes):
+                content = loads(msg.payload.decode("utf-8", "ignore"))
+            else:
+                content = loads(msg.payload)
+        except JSONDecodeError:
+            if isinstance(msg.payload, bytes):
+                content = msg.payload.decode("utf-8", "ignore")
+            else:
+                content = msg.payload
+        return content
