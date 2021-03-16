@@ -1,4 +1,5 @@
 import time
+from concurrent.futures.thread import ThreadPoolExecutor
 from logging import getLogger
 from pathlib import Path
 from threading import Thread
@@ -63,6 +64,9 @@ class VisioMQTTClient:  # (Thread):
                                           )
         poll_tread = Thread(target=self.api.run, daemon=True)
         poll_tread.start()
+
+        self.rpc_executor = ThreadPoolExecutor(max_workers=3,
+                                               thread_name_prefix='RPC_')
 
         # self.api.start()
         self.topics = [(topic, self._qos) for topic in self._config['subscribe']]
@@ -207,12 +211,13 @@ class VisioMQTTClient:  # (Thread):
         try:
             if msg_dct['params'].get('device_id') == self._config['device_id']:
                 if msg_dct.get('method') == 'value':
+                    self.rpc_executor.submit(self.api.rpc_value_panel, **msg_dct['params'])
                     # TODO: ADD THREAD POOL
-                    rpc_value_tread = Thread(target=self.api.rpc_value_panel,
-                                             kwargs={'params': msg_dct['params']},
-                                             daemon=True
-                                             )
-                    rpc_value_tread.start()
+                    # rpc_value_tread = Thread(target=self.api.rpc_value_panel,
+                    #                          kwargs={'params': msg_dct['params']},
+                    #                          daemon=True
+                    #                          )
+                    # rpc_value_tread.start()
                     # rpc_value_tread.join()
 
                     # todo: provide device_id and cache result (error) if device not polling
