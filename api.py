@@ -187,6 +187,7 @@ class I2CConnector:  # (Thread):
                                  qos=0, retain=False)
             if start_time_expired:
                 start_time += mqtt_interval
+                # start_time_expired = False # TODO: for start sending poll?
 
             _t_delta = time() - _t0
             delay = (realtime_interval - _t_delta) * 0.9
