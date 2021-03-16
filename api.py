@@ -2,7 +2,7 @@ import asyncio
 import logging
 from json import loads, JSONDecodeError
 from pathlib import Path
-from time import sleep, time
+from time import time
 
 import busio
 import digitalio
@@ -125,14 +125,15 @@ class I2CConnector:  # (Thread):
                 content = msg.payload
         return content
 
-    def run(self) -> None:
-        asyncio.run(self.start_polling())
+    # def run(self) -> None:
+    #     asyncio.run(self.start_polling())
 
     async def start_polling(self):
         _log.info(f'Start polling: {self._polling_buses}')
 
         for bus_id in self._polling_buses:
-            await asyncio.ensure_future(
+            # await asyncio.ensure_future(
+            await asyncio.create_task(
                 self.start_bus_polling(
                     bus_id=bus_id,
                     realtime_interval=self.get_realtime_interval(bus_id=bus_id),
@@ -218,7 +219,7 @@ class I2CConnector:  # (Thread):
     def get_pulse_delay(self, bus_id, pin_id):
         return self._config['bo_buses'][bus_id]['pulse_delay'][pin_id]
 
-    def rpc_value_panel(self, params):
+    async def rpc_value_panel(self, params):
         # params: dict) -> None:
 
         # todo: validate params
@@ -241,7 +242,8 @@ class I2CConnector:  # (Thread):
                 return
 
             if delay:
-                self._wr_p_s_wr_p(value=value, bus_id=bus_id, pin_id=pin_id, delay=delay)
+                await self._wr_p_s_wr_p(value=value, bus_id=bus_id, pin_id=pin_id,
+                                        delay=delay)
             else:
                 self._wr_p(value=value, bus_id=bus_id, pin_id=pin_id)
 
@@ -316,8 +318,8 @@ class I2CConnector:  # (Thread):
                          qos=1, retain=True
                          )
 
-    def _wr_p_s_wr_p(self, value, bus_id, pin_id, delay):
+    async def _wr_p_s_wr_p(self, value, bus_id, pin_id, delay):
         self._wr_p(value=value, bus_id=bus_id, pin_id=pin_id)
-        sleep(delay)
+        await asyncio.sleep(delay)
         value = not value
         self._wr_p(value=value, bus_id=bus_id, pin_id=pin_id)

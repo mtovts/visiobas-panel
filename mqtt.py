@@ -1,7 +1,7 @@
+import asyncio
 import time
 from logging import getLogger
 from pathlib import Path
-from threading import Thread
 
 import paho.mqtt.client as mqtt
 
@@ -63,8 +63,9 @@ class VisioMQTTClient:  # (Thread):
         self.api = I2CConnector.from_yaml(visio_mqtt_client=self,
                                           yaml_path=_base_dir / 'i2c.yaml'
                                           )
-        poll_tread = Thread(target=self.api.run, daemon=True)
-        poll_tread.start()
+        # poll_tread = Thread(target=self.api.run, daemon=True)
+        # poll_tread.start()
+        asyncio.create_task(self.api.start_polling())
 
         # self.api.start()
         self.topics = [(topic, self._qos) for topic in self._config['subscribe']]
@@ -209,12 +210,13 @@ class VisioMQTTClient:  # (Thread):
         try:
             if msg_dct['params'].get('device_id') == self._config['device_id']:
                 if msg_dct.get('method') == 'value':
-                    # TODO: ADD THREAD POOL
-                    rpc_value_tread = Thread(target=self.api.rpc_value_panel,
-                                             kwargs={'params': msg_dct['params']},
-                                             daemon=True
-                                             )
-                    rpc_value_tread.start()
+                    # TODO: check async rpc processing
+                    asyncio.create_task(self.api.rpc_value_panel(params=msg_dct['params']))
+                    # rpc_value_tread = Thread(target=self.api.rpc_value_panel,
+                    #                          kwargs={'params': msg_dct['params']},
+                    #                          daemon=True
+                    #                          )
+                    # rpc_value_tread.start()
                     # rpc_value_tread.join()
 
                     # todo: provide device_id and cache result (error) if device not polling
