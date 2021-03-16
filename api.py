@@ -187,13 +187,13 @@ class I2CConnector:  # (Thread):
                     self.publish(topic=topic, payload=payload,
                                  qos=0, retain=False)
             if start_time_expired:
-                start_time += mqtt_interval
-                # start_time_expired = False # TODO: for start sending poll?
+                start_time = time()
+                start_time_expired = False  # TODO: for start sending poll?
 
             _t_delta = time() - _t0
             delay = (realtime_interval - _t_delta) * 0.9
-            _log.info(f'Bus: {bus_id} polled for {round(_t_delta, ndigits=3)} sec '
-                      f'sleeping {delay} sec ...')
+            _log.info(f'Bus: {bus_id} polled for {round(_t_delta, ndigits=4)} sec '
+                      f'sleeping {round(delay, ndigits=4)} sec ...')
             await asyncio.sleep(delay)
 
     def get_topic(self, bus_id, pin_id):  # -> str:
