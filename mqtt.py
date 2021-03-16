@@ -47,6 +47,8 @@ class VisioMQTTClient:  # (Thread):
             transport='tcp',
             # transport='websockets'
         )
+
+        # self._client.tls_set_context(ssl.SSLContext(ssl.PROTOCOL_TLSv1_2))
         # self._client.tls_set()
         # self._client.enable_logger()  # logger=logger
         self._client.username_pw_set(username=self._username, password=self._password)
