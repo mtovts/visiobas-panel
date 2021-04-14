@@ -62,15 +62,8 @@ class I2CConnector:  # (Thread):
 
         self._polling_buses = self.bi_bus_ids
 
-        self._last_values = {bi_bus_id: {0: None,
-                                         1: None,
-                                         2: None,
-                                         3: None,
-                                         4: None,
-                                         5: None,
-                                         6: None,
-                                         7: None,
-                                         } for bi_bus_id in self.bi_bus_ids}
+        self._last_values = {bi_bus_id: {i: None for i in range(8)}
+                             for bi_bus_id in self.bi_bus_ids}
 
     @property
     def bi_bus_ids(self):
@@ -79,6 +72,10 @@ class I2CConnector:  # (Thread):
     @property
     def bo_bus_ids(self):
         return list(self._config.get('bo_buses', {}).keys())
+
+    @property
+    def buses(self):
+        return {**self._config.get('bo_buses', {}), **self._config.get('bi_buses', {})}
 
     @classmethod
     def from_yaml(cls, visio_mqtt_client, yaml_path: Path):
@@ -202,11 +199,9 @@ class I2CConnector:  # (Thread):
         return topic
 
     def get_default(self, bus_id, pin_id):  # -> bool
-        buses = {**self._config['bo_buses'], **self._config['bi_buses']}
-
-        default_value = buses[bus_id]['default'].get(pin_id)
+        default_value = self.buses[bus_id]['default'].get(pin_id)
         if default_value is None:
-            default_value = buses[bus_id]['default']['bus']
+            default_value = self.buses[bus_id]['default']['bus']
         return default_value
 
     def get_mqtt_interval(self, bus_id):  # -> int:
